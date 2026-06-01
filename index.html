@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>員工按摩預約系統</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --primary:#1a1a2e;--teal:#0f9b8e;--teal-l:#e0f5f3;--teal-m:#b2e8e4;
+  --g50:#f9f9f8;--g100:#f1f0ee;--g200:#e2e1de;--g300:#cccbc8;
+  --g400:#a8a7a4;--g600:#6b6a68;--g800:#2c2c2a;
+  --red:#e24b4a;--red-l:#fef0f0;--amber:#d97706;--amber-l:#fffbeb;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --sh-sm:0 1px 3px rgba(0,0,0,.08);--sh-md:0 4px 20px rgba(0,0,0,.13);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(--g50);color:var(--g800);min-height:100vh}
+.nav{background:var(--primary);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{color:#fff;font-size:15px;font-weight:500}
+.nav-brand span{color:var(--teal)}
+.nav-right{display:flex;align-items:center;gap:10px}
+.badge{font-size:11px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.7);padding:3px 10px;border-radius:20px}
+.badge.admin{background:var(--teal);color:#fff}
+.btn-nav{background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.8);padding:5px 14px;border-radius:var(--r-sm);font-size:13px;cursor:pointer}
+.btn-nav:hover{background:rgba(255,255,255,.1);color:#fff}
+.banner-red{background:#fef2f2;border-bottom:2px solid var(--red);padding:10px 24px;font-size:13px;color:var(--red);font-weight:500;display:flex;align-items:center;gap:8px}
+.banner-teal{background:var(--teal-l);border-bottom:1px solid var(--teal-m);padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:13px;flex-wrap:wrap}
+.banner-teal b{color:#085041}
+.btn-sm{padding:4px 12px;border-radius:var(--r-sm);font-size:12px;cursor:pointer;border:1px solid}
+.btn-teal-o{background:transparent;border-color:#0F6E56;color:#0F6E56}
+.btn-teal-o:hover{background:#0F6E56;color:#fff}
+.btn-gray-o{background:transparent;border-color:var(--g300);color:var(--g600);margin-left:auto}
+.wrap{max-width:980px;margin:0 auto;padding:24px 16px}
+/* Month tabs */
+.month-tabs{display:flex;gap:0;margin-bottom:20px;background:#fff;border:1px solid var(--g200);border-radius:var(--r-md);overflow:hidden;box-shadow:var(--sh-sm)}
+.month-tab{flex:1;padding:12px 16px;text-align:center;cursor:pointer;font-size:14px;color:var(--g600);transition:all .15s;border-right:1px solid var(--g200);display:flex;flex-direction:column;align-items:center;gap:3px}
+.month-tab:last-child{border-right:none}
+.month-tab:hover{background:var(--g50)}
+.month-tab.active{background:var(--teal);color:#fff}
+.month-tab .tab-month{font-weight:600;font-size:15px}
+.month-tab .tab-range{font-size:11px;opacity:.8}
+.month-tab .tab-badge{font-size:10px;background:rgba(255,255,255,.3);padding:1px 6px;border-radius:10px;margin-top:2px}
+.month-tab.active .tab-badge{background:rgba(255,255,255,.3)}
+.month-tab:not(.active) .tab-badge{background:var(--teal-l);color:var(--teal)}
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.stat{background:#fff;border:1px solid var(--g200);border-radius:var(--r-md);padding:16px;box-shadow:var(--sh-sm)}
+.stat-label{font-size:12px;color:var(--g600);margin-bottom:4px}
+.stat-val{font-size:26px;font-weight:600}
+.stat-val.teal{color:var(--teal)}
+.stat-val.red{color:var(--red)}
+.card{background:#fff;border:1px solid var(--g200);border-radius:var(--r-lg);box-shadow:var(--sh-sm);overflow:hidden}
+.card-head{padding:16px 20px;border-bottom:1px solid var(--g200)}
+.card-title{font-size:15px;font-weight:500}
+.card-sub{font-size:12px;color:var(--g600);margin-top:3px}
+.grid-wrap{overflow-x:auto}
+.bgrid{display:grid;grid-template-columns:110px repeat(5,1fr);min-width:560px}
+.corner{background:var(--g50);border-right:1px solid var(--g200);border-bottom:1px solid var(--g200)}
+.day-h{padding:12px 8px;text-align:center;border-right:1px solid var(--g200);border-bottom:1px solid var(--g200);background:var(--g50)}
+.day-h:last-child{border-right:none}
+.day-n{font-size:11px;color:var(--g400)}
+.day-d{font-size:18px;font-weight:600}
+.t-label{padding:10px 12px;font-size:11px;color:var(--g600);background:var(--g50);border-right:1px solid var(--g200);border-bottom:1px solid var(--g200);display:flex;align-items:flex-start;padding-top:12px;font-weight:500;line-height:1.5;min-height:90px}
+.cell{border-right:1px solid var(--g200);border-bottom:1px solid var(--g200);padding:7px;min-height:90px;display:flex;flex-direction:column;gap:5px}
+.cell:last-child{border-right:none}
+.cell.closed-bg{background:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(0,0,0,.03) 6px,rgba(0,0,0,.03) 12px)}
+.chip{background:var(--teal-l);border:1px solid var(--teal-m);border-radius:var(--r-sm);padding:5px 8px;font-size:12px;color:#085041;display:flex;flex-direction:column;gap:1px;position:relative}
+.chip.mine{border-color:var(--teal);background:#c8f0eb}
+.chip.mine::after{content:'我';position:absolute;top:3px;right:5px;font-size:9px;background:var(--teal);color:#fff;padding:1px 4px;border-radius:3px}
+.chip-name{font-weight:500}
+.chip-id{font-size:11px;color:#0F6E56}
+.tag-full{background:#fef0eb;border:1px solid #f5c4b3;border-radius:var(--r-sm);padding:4px 8px;font-size:11px;color:#993C1D;text-align:center}
+.tag-closed{background:var(--g100);border:1px solid var(--g300);border-radius:var(--r-sm);padding:4px 8px;font-size:11px;color:var(--g600);text-align:center}
+.add{border:1.5px dashed var(--g200);border-radius:var(--r-sm);padding:5px;font-size:11px;color:var(--g400);cursor:pointer;text-align:center;transition:all .15s;flex:1;min-height:30px;display:flex;align-items:center;justify-content:center}
+.add:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
+.add.off{cursor:not-allowed;opacity:.5}
+.add.off:hover{border-color:var(--g200);color:var(--g400);background:transparent}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.mbox{background:#fff;border-radius:var(--r-lg);padding:28px;width:380px;max-width:92vw;box-shadow:var(--sh-md)}
+.mbox h3{font-size:17px;font-weight:600;margin-bottom:5px}
+.msub{font-size:13px;color:var(--g600);margin-bottom:20px}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:13px;color:var(--g600);margin-bottom:5px}
+.fg input{width:100%;border:1px solid var(--g200);border-radius:var(--r-sm);padding:9px 12px;font-size:14px;outline:none;transition:border-color .15s}
+.fg input:focus{border-color:var(--teal)}
+.ferr{font-size:12px;color:var(--red);margin-top:4px;display:none}
+.fhint{font-size:11px;color:var(--g400);margin-top:4px;line-height:1.5}
+.mactions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.btn-primary{background:var(--teal);color:#fff;border:none;border-radius:var(--r-sm);padding:9px 20px;font-size:14px;font-weight:500;cursor:pointer}
+.btn-primary:hover{opacity:.85}
+.btn-cancel{background:transparent;color:var(--g600);border:1px solid var(--g200);border-radius:var(--r-sm);padding:9px 20px;font-size:14px;cursor:pointer}
+.btn-cancel:hover{background:var(--g100)}
+.btn-del{background:var(--red);color:#fff;border:none;border-radius:var(--r-sm);padding:9px 20px;font-size:14px;cursor:pointer}
+.btn-del:hover{opacity:.85}
+.ibox{border-radius:var(--r-sm);padding:10px 12px;font-size:12px;margin-bottom:16px;line-height:1.6}
+.ibox.warn{background:var(--amber-l);border:1px solid #fde68a;color:var(--amber)}
+.ibox.info{background:var(--teal-l);border:1px solid var(--teal-m);color:#085041}
+.steps{display:flex;margin-bottom:20px;border:1px solid var(--g200);border-radius:var(--r-sm);overflow:hidden}
+.step{flex:1;padding:8px;text-align:center;font-size:12px;color:var(--g400);background:var(--g50)}
+.step.on{background:var(--teal);color:#fff;font-weight:500}
+.pw-bar{height:3px;border-radius:2px;margin-top:5px;transition:all .3s}
+.admin-card{background:#fff;border:1px solid var(--g200);border-radius:var(--r-lg);box-shadow:var(--sh-sm);margin-top:20px;overflow:hidden}
+.admin-head{padding:14px 20px;border-bottom:1px solid var(--g200);background:var(--g50);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.admin-title{font-size:14px;font-weight:500}
+.admin-head-btns{display:flex;gap:8px}
+.ctrl-bar{padding:14px 20px;border-bottom:1px solid var(--g200);background:#fffbeb;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ctrl-label{font-size:12px;color:var(--amber);font-weight:500;white-space:nowrap}
+.btn-close-all{background:var(--red);color:#fff;border:none;border-radius:var(--r-sm);padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap}
+.btn-close-all:hover{opacity:.85}
+.btn-open-all{background:var(--teal);color:#fff;border:none;border-radius:var(--r-sm);padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap}
+.btn-open-all:hover{opacity:.85}
+.divider{width:1px;height:20px;background:var(--g200);flex-shrink:0}
+.slot-btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.slot-btn{border:1px solid var(--g300);background:#fff;border-radius:var(--r-sm);padding:4px 10px;font-size:11px;cursor:pointer;color:var(--g600)}
+.slot-btn.closed{background:var(--red-l);border-color:var(--red);color:var(--red)}
+.admin-rows{padding:12px}
+.arow{display:grid;grid-template-columns:90px 1fr 1fr auto;gap:8px;align-items:center;padding:8px 10px;border-radius:var(--r-sm);font-size:13px;border-bottom:1px solid var(--g100)}
+.arow:last-child{border-bottom:none}
+.arow:hover{background:var(--g50)}
+.arow-head{font-size:11px;color:var(--g400);font-weight:500;padding:4px 10px 8px}
+.del-btn{background:transparent;border:1px solid var(--g200);border-radius:var(--r-sm);padding:3px 10px;font-size:12px;color:var(--red);cursor:pointer;white-space:nowrap}
+.del-btn:hover{background:var(--red-l);border-color:var(--red)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--g800);color:#fff;padding:10px 20px;border-radius:30px;font-size:13px;opacity:0;transition:all .3s;z-index:999;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.loader{position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:500;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--g600);gap:10px}
+.spin{width:20px;height:20px;border:2px solid var(--g200);border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div id="loader" class="loader"><div class="spin"></div>連線中...</div>
+
+<nav class="nav">
+  <div class="nav-brand">&#x1F4C5; 員工按摩預約<span>系統</span></div>
+  <div class="nav-right">
+    <span class="badge" id="role-badge">訪客</span>
+    <button class="btn-nav" id="btn-admin" onclick="openAdminLogin()">管理員</button>
+  </div>
+</nav>
+
+<div id="closed-banner" style="display:none" class="banner-red">
+  &#x1F512; 本期預約已關閉，如有疑問請聯絡管理員
+</div>
+<div id="my-bar" style="display:none" class="banner-teal">
+  <span>&#x1F44B; <b id="bar-name"></b>，本期已預約：<b id="bar-slot"></b></span>
+  <button class="btn-sm btn-teal-o" onclick="openCancelMine()">取消預約</button>
+  <button class="btn-sm btn-gray-o" onclick="logoutStaff()">登出</button>
+</div>
+
+<div class="wrap">
+  <!-- 月份分頁 -->
+  <div class="month-tabs" id="month-tabs"></div>
+
+  <!-- 統計 -->
+  <div class="stats">
+    <div class="stat"><div class="stat-label">本期總預約</div><div class="stat-val teal" id="s-total">—</div></div>
+    <div class="stat"><div class="stat-label">剩餘名額</div><div class="stat-val" id="s-avail">—</div></div>
+    <div class="stat"><div class="stat-label">已滿時段</div><div class="stat-val red" id="s-full">—</div></div>
+  </div>
+
+  <!-- 預約格 -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title" id="grid-title"></div>
+      <div class="card-sub">每人本期限預約一次，取消後可重新預約</div>
+    </div>
+    <div class="grid-wrap"><div class="bgrid" id="bgrid"></div></div>
+  </div>
+
+  <!-- 管理員面板 -->
+  <div class="admin-card" id="admin-card" style="display:none">
+    <div class="admin-head">
+      <div class="admin-title">&#x1F6E1;&#xFE0F; 管理員 — 預約紀錄</div>
+      <div class="admin-head-btns">
+        <button class="btn-cancel" style="font-size:12px;padding:5px 12px" onclick="exportCSV()">匯出本期 CSV</button>
+        <button class="btn-cancel" style="font-size:12px;padding:5px 12px" onclick="exportAllCSV()">匯出全部 CSV</button>
+      </div>
+    </div>
+    <div class="ctrl-bar">
+      <span class="ctrl-label">&#x1F527; 預約開關</span>
+      <button id="btn-global" class="btn-close-all" onclick="toggleGlobal()">關閉本期預約</button>
+      <div class="divider"></div>
+      <div class="slot-btns" id="slot-btns"></div>
+    </div>
+    <div class="admin-rows" id="admin-rows"></div>
+  </div>
+</div>
+
+<!-- Book modal -->
+<div class="overlay" id="m-book">
+  <div class="mbox">
+    <h3>新增預約</h3>
+    <p class="msub" id="m-book-sub"></p>
+    <div id="s1">
+      <div class="steps"><div class="step on">&#x2460; 輸入身份</div><div class="step">&#x2461; 確認預約</div></div>
+      <div class="ibox warn">首次預約請設定您的專屬密碼；取消時需輸入相同密碼。</div>
+      <div class="fg">
+        <label>員工姓名 <span style="color:var(--red)">*</span></label>
+        <input type="text" id="i-name" placeholder="請輸入真實姓名" autocomplete="off">
+        <div class="ferr" id="e-name"></div>
+      </div>
+      <div class="fg">
+        <label>員工編號（選填）</label>
+        <input type="text" id="i-empid" placeholder="例：EMP001" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label>設定您的預約密碼 <span style="color:var(--red)">*</span></label>
+        <input type="password" id="i-pw" placeholder="請輸入密碼（至少 4 位）">
+        <div class="pw-bar" id="pw-bar"></div>
+        <div class="fhint">此密碼僅供取消或重新預約使用</div>
+        <div class="ferr" id="e-pw"></div>
+      </div>
+      <div class="mactions">
+        <button class="btn-cancel" onclick="closeM('m-book')">取消</button>
+        <button class="btn-primary" onclick="step2()">下一步 &#x2192;</button>
+      </div>
+    </div>
+    <div id="s2" style="display:none">
+      <div class="steps"><div class="step">&#x2460; 輸入身份</div><div class="step on">&#x2461; 確認預約</div></div>
+      <div class="ibox info" id="s2-summary"></div>
+      <div class="mactions">
+        <button class="btn-cancel" onclick="backS1()">&#x2190; 返回</button>
+        <button class="btn-primary" onclick="doBook()">確認預約 &#x2713;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel modal -->
+<div class="overlay" id="m-cancel">
+  <div class="mbox">
+    <h3>取消預約</h3>
+    <p class="msub" id="m-cancel-sub"></p>
+    <div class="fg">
+      <label>請輸入您的預約密碼</label>
+      <input type="password" id="i-cancel-pw" placeholder="您設定的專屬密碼">
+      <div class="ferr" id="e-cancel-pw">密碼錯誤，請重試</div>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeM('m-cancel')">返回</button>
+      <button class="btn-del" onclick="doCancel()">確認取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin login modal -->
+<div class="overlay" id="m-admin">
+  <div class="mbox">
+    <h3>管理員登入</h3>
+    <p class="msub">輸入管理員密碼以開啟進階功能</p>
+    <div class="fg">
+      <label>管理員密碼</label>
+      <input type="password" id="i-admin-pw" placeholder="請輸入管理員密碼">
+      <div class="ferr" id="e-admin-pw">密碼錯誤</div>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeM('m-admin')">取消</button>
+      <button class="btn-primary" onclick="doAdminLogin()">登入</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// ★ CONFIG — 只需修改此區塊
+// ============================================================
+var CFG = {
+  SUPABASE_URL: 'https://kzmkptqszhaacpgqturf.supabase.co',
+  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6bWtwdHFzemhhYWNwZ3F0dXJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDgxODUsImV4cCI6MjA5NTg4NDE4NX0.w6QCtV_052vmhoTLKAluOwuDYToq8us0F6kA_YoTG0E',
+  ADMIN_PW: 'admin888',   // ← 管理員密碼
+  MAX: 2,                 // ← 每時段人數上限
+  SLOTS: ['12:00-13:00', '20:00-21:00', '21:00-22:00'],
+
+  // ★ 月份設定 — 新增月份只需在此加一段，日期自行修改
+  WEEKS: [
+    {
+      label: '7 月',
+      range: '7/6 - 7/10',
+      table: 'massage_jul2026',  // Supabase 資料表名稱
+      days: [
+        {lbl:'週一', d:'7/6',  k:'2026-07-06'},
+        {lbl:'週二', d:'7/7',  k:'2026-07-07'},
+        {lbl:'週三', d:'7/8',  k:'2026-07-08'},
+        {lbl:'週四', d:'7/9',  k:'2026-07-09'},
+        {lbl:'週五', d:'7/10', k:'2026-07-10'}
+      ]
+    },
+    {
+      label: '9 月',
+      range: '8/31 - 9/4',       // ← 日期確定後改這裡
+      table: 'massage_aug2026',  // ← 對應 Supabase 資料表
+      days: [
+        {lbl:'週一', d:'8/31',  k:'2026-08-31'},  // ← 改這裡
+        {lbl:'週二', d:'9/1',  k:'2026-09-01'},  // ← 改這裡
+        {lbl:'週三', d:'9/2',  k:'2026-09-02'},  // ← 改這裡
+        {lbl:'週四', d:'9/3',  k:'2026-09-03'},  // ← 改這裡
+        {lbl:'週五', d:'9/4',  k:'2026-09-04'}   // ← 改這裡
+      ]
+    }
+  ]
+};
+// ============================================================
+
+var supa = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+var isAdmin = false;
+var curIdx = 0;       // 目前選擇的月份 index
+var bookings = [];    // 目前月份的預約資料
+var allMonthBk = {};  // 各月份預約數快取 {table: count}
+var mySession = null;
+var pendingBook = null;
+var pendingCancel = null;
+var pendingHash = null;
+
+async function sha256(str) {
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+function getClosed() {
+  try { return JSON.parse(localStorage.getItem('bk_closed') || '{}'); } catch(e) { return {}; }
+}
+function setClosed(obj) { localStorage.setItem('bk_closed', JSON.stringify(obj)); }
+function getClosedKey() { return CFG.WEEKS[curIdx].table; }
+
+// ── Init ──────────────────────────────────────────────
+async function init() {
+  var saved = sessionStorage.getItem('staff');
+  if (saved) { try { mySession = JSON.parse(saved); } catch(e) {} }
+  // Load count for all months for tab badges
+  await loadAllCounts();
+  await load();
+  document.getElementById('loader').style.display = 'none';
+}
+
+async function loadAllCounts() {
+  for (var i = 0; i < CFG.WEEKS.length; i++) {
+    var w = CFG.WEEKS[i];
+    var res = await supa.from(w.table).select('id', {count:'exact', head:true});
+    allMonthBk[w.table] = (res.error ? 0 : (res.count || 0));
+  }
+}
+
+async function load() {
+  var tbl = CFG.WEEKS[curIdx].table;
+  var res = await supa.from(tbl).select('id,name,emp_id,slot,date_key,created_at').order('created_at');
+  if (res.error) { toast('無法載入資料: ' + res.error.message); bookings = []; }
+  else { bookings = res.data || []; }
+  allMonthBk[tbl] = bookings.length;
+  if (mySession && mySession.monthTable !== tbl) {
+    // session belongs to different month, don't clear it
+  } else if (mySession) {
+    var still = bookings.find(function(b){ return b.id === mySession.bookingId; });
+    if (!still) { mySession = null; sessionStorage.removeItem('staff'); }
+  }
+  render();
+  hideLoader();
+}
+
+// ── Render ────────────────────────────────────────────
+function render() {
+  renderTabs();
+  renderGrid();
+  renderStats();
+  renderMyBar();
+  renderClosedBanner();
+  if (isAdmin) { renderAdminRows(); renderSlotBtns(); }
+}
+
+function renderTabs() {
+  var wrap = document.getElementById('month-tabs');
+  wrap.innerHTML = '';
+  CFG.WEEKS.forEach(function(w, i) {
+    var tab = mk('div', 'month-tab' + (i === curIdx ? ' active' : ''));
+    var cnt = allMonthBk[w.table] || 0;
+    var max = CFG.SLOTS.length * 5 * CFG.MAX;
+    tab.innerHTML = '<span class="tab-month">' + w.label + '</span>'
+      + '<span class="tab-range">' + w.range + '</span>'
+      + '<span class="tab-badge">' + cnt + ' / ' + max + ' 人</span>';
+    tab.onclick = (function(idx){ return function(){ switchMonth(idx); }; })(i);
+    wrap.appendChild(tab);
+  });
+}
+
+function switchMonth(idx) {
+  if (idx === curIdx) return;
+  curIdx = idx;
+  // Check if mySession belongs to new month
+  if (mySession && mySession.monthTable !== CFG.WEEKS[curIdx].table) {
+    // Keep session but it won't show as "mine" in this month
+  }
+  showLoader();
+  load();
+}
+
+function renderGrid() {
+  var w = CFG.WEEKS[curIdx];
+  document.getElementById('grid-title').textContent = '2026 年 ' + w.label + '　' + w.range;
+  var g = document.getElementById('bgrid');
+  g.innerHTML = '';
+  var closed = getClosed();
+  var ck = getClosedKey();
+  var monthClosed = closed[ck] && closed[ck].global;
+
+  g.appendChild(mk('div','corner'));
+  w.days.forEach(function(day) {
+    var h = mk('div','day-h');
+    h.innerHTML = '<div class="day-n">'+day.lbl+'</div><div class="day-d">'+day.d+'</div>';
+    g.appendChild(h);
+  });
+
+  CFG.SLOTS.forEach(function(slot) {
+    var slotClosed = monthClosed || (closed[ck] && closed[ck].slots && closed[ck].slots[slot]);
+    var lbl = mk('div','t-label');
+    lbl.innerHTML = slot + (slotClosed ? '<span style="font-size:10px;color:var(--red);display:block;margin-top:3px">&#x1F512; 已關閉</span>' : '');
+    g.appendChild(lbl);
+
+    w.days.forEach(function(day) {
+      var cell = mk('div','cell');
+      if (slotClosed) cell.classList.add('closed-bg');
+      var slotBks = bookings.filter(function(b){ return b.slot === slot && b.date_key === day.k; });
+
+      slotBks.forEach(function(b) {
+        var chip = mk('div','chip');
+        var isMe = mySession && mySession.monthTable === CFG.WEEKS[curIdx].table && b.id === mySession.bookingId;
+        if (isMe) chip.classList.add('mine');
+        chip.innerHTML = '<span class="chip-name">'+b.name+'</span>'+(b.emp_id ? '<span class="chip-id">'+b.emp_id+'</span>' : '');
+        if (isAdmin) {
+          chip.style.cursor = 'pointer';
+          chip.title = '點擊刪除';
+          chip.onclick = (function(bk){ return function(){ adminDelChip(bk); }; })(b);
+        }
+        cell.appendChild(chip);
+      });
+
+      if (slotClosed && !isAdmin) {
+        var t = mk('div','tag-closed'); t.textContent = '預約已關閉'; cell.appendChild(t);
+      } else if (slotBks.length >= CFG.MAX) {
+        var t2 = mk('div','tag-full'); t2.textContent = '已滿'; cell.appendChild(t2);
+      } else {
+        var add = mk('div','add');
+        if (slotClosed && isAdmin) {
+          add.textContent = '🔒 已關閉'; add.classList.add('off');
+        } else if (mySession && mySession.monthTable === CFG.WEEKS[curIdx].table && !isAdmin) {
+          add.textContent = '已有預約'; add.classList.add('off'); add.title = '請先取消現有預約';
+        } else {
+          add.textContent = '+ 預約';
+          add.onclick = (function(s,d){ return function(){ openBook(s,d); }; })(slot,day);
+        }
+        cell.appendChild(add);
+      }
+      g.appendChild(cell);
+    });
+  });
+}
+
+function renderStats() {
+  var total = bookings.length;
+  var max = CFG.SLOTS.length * CFG.WEEKS[curIdx].days.length * CFG.MAX;
+  var full = 0;
+  CFG.SLOTS.forEach(function(s) {
+    CFG.WEEKS[curIdx].days.forEach(function(d) {
+      if (bookings.filter(function(b){ return b.slot===s && b.date_key===d.k; }).length >= CFG.MAX) full++;
+    });
+  });
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-avail').textContent = max - total;
+  document.getElementById('s-full').textContent = full;
+}
+
+function renderMyBar() {
+  var bar = document.getElementById('my-bar');
+  var badge = document.getElementById('role-badge');
+  if (mySession) {
+    bar.style.display = 'flex';
+    document.getElementById('bar-name').textContent = mySession.name;
+    document.getElementById('bar-slot').textContent = mySession.monthLabel + ' ' + mySession.dateKey + ' ' + mySession.slot;
+    if (!isAdmin) { badge.textContent = mySession.name; badge.classList.remove('admin'); }
+  } else if (!isAdmin) {
+    bar.style.display = 'none';
+    badge.textContent = '訪客'; badge.classList.remove('admin');
+  }
+}
+
+function renderClosedBanner() {
+  var closed = getClosed();
+  var ck = getClosedKey();
+  var isGlobalClosed = closed[ck] && closed[ck].global;
+  document.getElementById('closed-banner').style.display = isGlobalClosed ? 'flex' : 'none';
+}
+
+function renderSlotBtns() {
+  var closed = getClosed();
+  var ck = getClosedKey();
+  var wrap = document.getElementById('slot-btns');
+  wrap.innerHTML = '';
+  CFG.SLOTS.forEach(function(slot) {
+    var isClosed = closed[ck] && closed[ck].slots && closed[ck].slots[slot];
+    var btn = mk('button', 'slot-btn' + (isClosed ? ' closed' : ''));
+    btn.textContent = (isClosed ? '🔒 ' : '🟢 ') + slot;
+    btn.onclick = (function(s){ return function(){ toggleSlot(s); }; })(slot);
+    wrap.appendChild(btn);
+  });
+  var gb = document.getElementById('btn-global');
+  var gClosed = closed[ck] && closed[ck].global;
+  gb.textContent = gClosed ? '開放本期預約' : '關閉本期預約';
+  gb.className = gClosed ? 'btn-open-all' : 'btn-close-all';
+}
+
+function renderAdminRows() {
+  var el = document.getElementById('admin-rows');
+  if (!bookings.length) {
+    el.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--g400);text-align:center">目前無預約紀錄</div>';
+    return;
+  }
+  var html = '<div class="arow arow-head"><span>日期</span><span>時段</span><span>員工</span><span>操作</span></div>';
+  bookings.forEach(function(b) {
+    html += '<div class="arow">'
+      + '<span style="font-size:12px">'+b.date_key+'</span>'
+      + '<span style="font-size:12px">'+b.slot+'</span>'
+      + '<span style="font-size:12px"><b>'+b.name+'</b>'+(b.emp_id ? ' · '+b.emp_id : '')+'</span>'
+      + '<button class="del-btn" onclick="adminDelById(\''+b.id+'\')">刪除</button>'
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
+// ── Book ──────────────────────────────────────────────
+function openBook(slot, day) {
+  pendingBook = {slot:slot, day:day};
+  document.getElementById('m-book-sub').textContent = CFG.WEEKS[curIdx].label + ' ' + day.d + '（' + day.lbl + '） ' + slot;
+  document.getElementById('i-name').value = '';
+  document.getElementById('i-empid').value = '';
+  document.getElementById('i-pw').value = '';
+  document.getElementById('pw-bar').style.background = '';
+  document.getElementById('e-name').style.display = 'none';
+  document.getElementById('e-pw').style.display = 'none';
+  document.getElementById('s1').style.display = '';
+  document.getElementById('s2').style.display = 'none';
+  openM('m-book');
+  setTimeout(function(){ document.getElementById('i-name').focus(); }, 100);
+}
+
+document.getElementById('i-pw').addEventListener('input', function() {
+  var v = this.value, bar = document.getElementById('pw-bar');
+  if (!v) { bar.style.background = ''; return; }
+  if (v.length < 4) bar.style.background = 'linear-gradient(90deg,var(--red) 30%,var(--g200) 30%)';
+  else if (v.length < 6) bar.style.background = 'linear-gradient(90deg,var(--amber) 60%,var(--g200) 60%)';
+  else bar.style.background = 'var(--teal)';
+});
+
+async function step2() {
+  var name = document.getElementById('i-name').value.trim();
+  var pw = document.getElementById('i-pw').value;
+  var ok = true;
+  if (!name) { document.getElementById('e-name').textContent = '請填寫員工姓名'; document.getElementById('e-name').style.display = 'block'; ok = false; }
+  else { document.getElementById('e-name').style.display = 'none'; }
+  if (pw.length < 4) { document.getElementById('e-pw').textContent = '密碼至少需 4 位'; document.getElementById('e-pw').style.display = 'block'; ok = false; }
+  else { document.getElementById('e-pw').style.display = 'none'; }
+  if (!ok) return;
+  var exists = bookings.find(function(b){ return b.name === name; });
+  if (exists && !isAdmin) {
+    document.getElementById('e-name').textContent = '「'+name+'」本期已有預約，請先取消後再預約';
+    document.getElementById('e-name').style.display = 'block';
+    return;
+  }
+  pendingHash = await sha256(pw);
+  var empId = document.getElementById('i-empid').value.trim();
+  var d = pendingBook.day, s = pendingBook.slot;
+  document.getElementById('s2-summary').innerHTML =
+    '&#x1F4CB; 確認預約內容：<br><br>'
+    + '<b>月份：</b>' + CFG.WEEKS[curIdx].label + '<br>'
+    + '<b>員工姓名：</b>'+name+(empId ? '　<b>編號：</b>'+empId : '')+'<br>'
+    + '<b>日期：</b>'+d.d+'（'+d.lbl+'）<br>'
+    + '<b>時段：</b>'+s+'<br><br>'
+    + '&#x26A0;&#xFE0F; 請牢記密碼，取消預約時需要輸入。';
+  document.getElementById('s1').style.display = 'none';
+  document.getElementById('s2').style.display = '';
+}
+
+function backS1() {
+  document.getElementById('s1').style.display = '';
+  document.getElementById('s2').style.display = 'none';
+}
+
+async function doBook() {
+  var name = document.getElementById('i-name').value.trim();
+  var empId = document.getElementById('i-empid').value.trim();
+  var slot = pendingBook.slot, day = pendingBook.day;
+  var tbl = CFG.WEEKS[curIdx].table;
+  showLoader();
+  var res = await supa.from(tbl).insert({
+    name: name, emp_id: empId || null, slot: slot, date_key: day.k, pw_hash: pendingHash
+  }).select().single();
+  if (res.error) { hideLoader(); toast('&#x274C; 預約失敗：' + res.error.message); return; }
+  mySession = {name:name, empId:empId, bookingId:res.data.id, slot:slot, dateKey:day.k, monthTable:tbl, monthLabel:CFG.WEEKS[curIdx].label};
+  sessionStorage.setItem('staff', JSON.stringify(mySession));
+  await load();
+  closeM('m-book');
+  toast('&#x2705; 預約成功！');
+}
+
+// ── Cancel ────────────────────────────────────────────
+function openCancelMine() {
+  if (!mySession) return;
+  // Switch to correct month first
+  var mIdx = CFG.WEEKS.findIndex(function(w){ return w.table === mySession.monthTable; });
+  if (mIdx >= 0 && mIdx !== curIdx) { switchMonth(mIdx); return; }
+  var b = bookings.find(function(bk){ return bk.id === mySession.bookingId; });
+  if (!b) return;
+  pendingCancel = b;
+  document.getElementById('m-cancel-sub').textContent = '取消 '+b.name+' 的預約 — '+b.date_key+' '+b.slot;
+  document.getElementById('i-cancel-pw').value = '';
+  document.getElementById('e-cancel-pw').style.display = 'none';
+  openM('m-cancel');
+  setTimeout(function(){ document.getElementById('i-cancel-pw').focus(); }, 100);
+}
+
+async function doCancel() {
+  var pw = document.getElementById('i-cancel-pw').value;
+  var hash = await sha256(pw);
+  var adminHash = await sha256(CFG.ADMIN_PW);
+  var tbl = mySession ? mySession.monthTable : CFG.WEEKS[curIdx].table;
+  var res = await supa.from(tbl).select('pw_hash').eq('id', pendingCancel.id).single();
+  var stored = res.data && res.data.pw_hash;
+  if (!isAdmin && hash !== stored && hash !== adminHash) {
+    document.getElementById('e-cancel-pw').style.display = 'block'; return;
+  }
+  document.getElementById('e-cancel-pw').style.display = 'none';
+  showLoader();
+  await supa.from(tbl).delete().eq('id', pendingCancel.id);
+  if (mySession && pendingCancel.id === mySession.bookingId) {
+    mySession = null; sessionStorage.removeItem('staff');
+  }
+  await load();
+  closeM('m-cancel');
+  toast('&#x1F5D1;&#xFE0F; 預約已取消，可重新預約');
+}
+
+function logoutStaff() {
+  mySession = null; sessionStorage.removeItem('staff');
+  render(); toast('已登出');
+}
+
+// ── Admin ─────────────────────────────────────────────
+function openAdminLogin() {
+  if (isAdmin) { logoutAdmin(); return; }
+  document.getElementById('i-admin-pw').value = '';
+  document.getElementById('e-admin-pw').style.display = 'none';
+  openM('m-admin');
+  setTimeout(function(){ document.getElementById('i-admin-pw').focus(); }, 100);
+}
+
+function doAdminLogin() {
+  if (document.getElementById('i-admin-pw').value !== CFG.ADMIN_PW) {
+    document.getElementById('e-admin-pw').style.display = 'block'; return;
+  }
+  isAdmin = true;
+  closeM('m-admin');
+  var badge = document.getElementById('role-badge');
+  badge.textContent = '管理員'; badge.classList.add('admin');
+  document.getElementById('btn-admin').textContent = '登出管理員';
+  document.getElementById('admin-card').style.display = '';
+  render(); toast('&#x1F511; 管理員已登入');
+}
+
+function logoutAdmin() {
+  isAdmin = false;
+  var badge = document.getElementById('role-badge');
+  badge.textContent = mySession ? mySession.name : '訪客'; badge.classList.remove('admin');
+  document.getElementById('btn-admin').textContent = '管理員';
+  document.getElementById('admin-card').style.display = 'none';
+  render();
+}
+
+function toggleGlobal() {
+  var closed = getClosed();
+  var ck = getClosedKey();
+  if (!closed[ck]) closed[ck] = {};
+  closed[ck].global = !closed[ck].global;
+  setClosed(closed); render();
+  toast(closed[ck].global ? '&#x1F512; 已關閉本期預約入口' : '&#x2705; 已開放本期預約入口');
+}
+
+function toggleSlot(slot) {
+  var closed = getClosed();
+  var ck = getClosedKey();
+  if (!closed[ck]) closed[ck] = {};
+  if (!closed[ck].slots) closed[ck].slots = {};
+  closed[ck].slots[slot] = !closed[ck].slots[slot];
+  setClosed(closed); render();
+  toast(closed[ck].slots[slot] ? '&#x1F512; 已關閉：' + slot : '&#x2705; 已開放：' + slot);
+}
+
+async function adminDelChip(b) {
+  if (!confirm('管理員刪除「'+b.name+'」的預約？')) return;
+  await doAdminDel(b.id);
+}
+async function adminDelById(id) {
+  if (!confirm('確定刪除此預約紀錄？')) return;
+  await doAdminDel(id);
+}
+async function doAdminDel(id) {
+  showLoader();
+  var tbl = CFG.WEEKS[curIdx].table;
+  await supa.from(tbl).delete().eq('id', id);
+  if (mySession && mySession.bookingId === id) { mySession = null; sessionStorage.removeItem('staff'); }
+  await load(); toast('已刪除');
+}
+
+function exportCSV() {
+  var w = CFG.WEEKS[curIdx];
+  var rows = [['月份','日期','時段','員工姓名','員工編號','建立時間']];
+  bookings.forEach(function(b){ rows.push([w.label, b.date_key, b.slot, b.name, b.emp_id||'', b.created_at||'']); });
+  dlCSV(rows, 'massage_' + w.table + '.csv');
+}
+
+async function exportAllCSV() {
+  showLoader();
+  var rows = [['月份','日期','時段','員工姓名','員工編號','建立時間']];
+  for (var i = 0; i < CFG.WEEKS.length; i++) {
+    var w = CFG.WEEKS[i];
+    var res = await supa.from(w.table).select('*').order('created_at');
+    if (!res.error && res.data) {
+      res.data.forEach(function(b){ rows.push([w.label, b.date_key, b.slot, b.name, b.emp_id||'', b.created_at||'']); });
+    }
+  }
+  hideLoader();
+  dlCSV(rows, 'massage_all.csv');
+}
+
+function dlCSV(rows, filename) {
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+c+'"'; }).join(','); }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'}));
+  a.download = filename;
+  a.click();
+}
+
+// ── Helpers ───────────────────────────────────────────
+function mk(tag, cls) { var e = document.createElement(tag); if (cls) e.className = cls; return e; }
+function openM(id) { document.getElementById(id).classList.add('open'); }
+function closeM(id) { document.getElementById(id).classList.remove('open'); }
+function showLoader() { document.getElementById('loader').style.display = 'flex'; }
+function hideLoader() { document.getElementById('loader').style.display = 'none'; }
+var _tt;
+function toast(msg) {
+  var t = document.getElementById('toast'); t.innerHTML = msg; t.classList.add('show');
+  clearTimeout(_tt); _tt = setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+['m-book','m-cancel','m-admin'].forEach(function(id) {
+  document.getElementById(id).addEventListener('click', function(e){ if (e.target === this) closeM(id); });
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { closeM('m-book'); closeM('m-cancel'); closeM('m-admin'); }
+  if (e.key === 'Enter' && document.getElementById('m-admin').classList.contains('open')) doAdminLogin();
+});
+
+init();
+</script>
+
+<!--
+=================================================================
+★ 新增 8 月資料表 — 請在 Supabase SQL Editor 執行：
+
+create table if not exists massage_aug2026 (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  emp_id     text,
+  slot       text not null,
+  date_key   text not null,
+  pw_hash    text,
+  created_at timestamptz default now()
+);
+alter table massage_aug2026 enable row level security;
+create policy "allow all" on massage_aug2026 for all using (true) with check (true);
+
+（7 月資料表 massage_jul2026 維持不動，資料完整保留）
+=================================================================
+-->
+</body>
+</html>
