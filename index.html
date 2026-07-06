@@ -116,10 +116,14 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
 .slot-btn{border:1px solid var(--g300);background:#fff;border-radius:var(--r-sm);padding:4px 10px;font-size:11px;cursor:pointer;color:var(--g600)}
 .slot-btn.closed{background:var(--red-l);border-color:var(--red);color:var(--red)}
 .admin-rows{padding:12px}
-.arow{display:grid;grid-template-columns:90px 1fr 1fr auto;gap:8px;align-items:center;padding:8px 10px;border-radius:var(--r-sm);font-size:13px;border-bottom:1px solid var(--g100)}
-.arow:last-child{border-bottom:none}
-.arow:hover{background:var(--g50)}
-.arow-head{font-size:11px;color:var(--g400);font-weight:500;padding:4px 10px 8px}
+.atable{width:100%;border-collapse:collapse}
+.atable th{font-size:11px;color:var(--g400);font-weight:500;text-align:left;padding:4px 10px 8px}
+.atable td{font-size:13px;padding:8px 10px;border-bottom:1px solid var(--g100)}
+.atable tbody tr:last-child td{border-bottom:none}
+.atable tbody tr:hover td{background:var(--g50)}
+.atable th:nth-child(1),.atable td:nth-child(1){width:90px}
+.atable th:nth-child(3),.atable td:nth-child(3){text-align:center}
+.atable th:nth-child(4),.atable td:nth-child(4){text-align:right}
 .del-btn{background:transparent;border:1px solid var(--g200);border-radius:var(--r-sm);padding:3px 10px;font-size:12px;color:var(--red);cursor:pointer;white-space:nowrap}
 .del-btn:hover{background:var(--red-l);border-color:var(--red)}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--g800);color:#fff;padding:10px 20px;border-radius:30px;font-size:13px;opacity:0;transition:all .3s;z-index:999;pointer-events:none;white-space:nowrap}
@@ -560,18 +564,19 @@ function renderAdminRows() {
     el.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--g400);text-align:center">目前無預約紀錄</div>';
     return;
   }
-  var html = '<div class="arow arow-head"><div>日期</div><div>時段</div><div style="width:100%;text-align:center">員工</div><div style="width:100%;text-align:right">操作</div></div>';
+  var html = '<table class="atable"><thead><tr><th>日期</th><th>時段</th><th>員工</th><th>操作</th></tr></thead><tbody>';
   bookings.forEach(function(b) {
-    html += '<div class="arow">'
-      + '<div style="font-size:12px">'+b.date_key+'</div>'
-      + '<div style="font-size:12px">'+b.slot+'</div>'
-      + '<div style="font-size:12px;width:100%;text-align:center"><b>'+b.name+'</b>'+(b.emp_id ? ' · '+b.emp_id : '')+'</div>'
-      + '<div style="display:flex;gap:6px;justify-content:flex-end">'
+    html += '<tr>'
+      + '<td>'+b.date_key+'</td>'
+      + '<td>'+b.slot+'</td>'
+      + '<td><b>'+b.name+'</b>'+(b.emp_id ? ' · '+b.emp_id : '')+'</td>'
+      + '<td><div style="display:flex;gap:6px;justify-content:flex-end">'
       + '<button class="del-btn" style="border-color:var(--teal);color:#0F6E56" onclick="adminEditById(\''+b.id+'\')">修改</button>'
       + '<button class="del-btn" onclick="adminDelById(\''+b.id+'\')">刪除</button>'
-      + '</div>'
-      + '</div>';
+      + '</div></td>'
+      + '</tr>';
   });
+  html += '</tbody></table>';
   el.innerHTML = html;
 }
 
