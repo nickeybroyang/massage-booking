@@ -560,12 +560,12 @@ function renderAdminRows() {
     el.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--g400);text-align:center">目前無預約紀錄</div>';
     return;
   }
-  var html = '<div class="arow arow-head"><span>日期</span><span>時段</span><span>員工</span><span>操作</span></div>';
+  var html = '<div class="arow arow-head"><span>日期</span><span>時段</span><span style="text-align:center">員工</span><span style="text-align:right">操作</span></div>';
   bookings.forEach(function(b) {
     html += '<div class="arow">'
       + '<span style="font-size:12px">'+b.date_key+'</span>'
       + '<span style="font-size:12px">'+b.slot+'</span>'
-      + '<span style="font-size:12px"><b>'+b.name+'</b>'+(b.emp_id ? ' · '+b.emp_id : '')+'</span>'
+      + '<span style="font-size:12px;text-align:center"><b>'+b.name+'</b>'+(b.emp_id ? ' · '+b.emp_id : '')+'</span>'
       + '<span style="display:flex;gap:6px;justify-content:flex-end">'
       + '<button class="del-btn" style="border-color:var(--teal);color:#0F6E56" onclick="adminEditById(\''+b.id+'\')">修改</button>'
       + '<button class="del-btn" onclick="adminDelById(\''+b.id+'\')">刪除</button>'
