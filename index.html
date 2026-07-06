@@ -185,6 +185,10 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
       <div class="divider"></div>
       <div class="slot-btns" id="slot-btns"></div>
     </div>
+    <div class="ctrl-bar">
+      <span class="ctrl-label">&#x1F4C5; 單日開關</span>
+      <div class="slot-btns" id="day-btns"></div>
+    </div>
     <div class="admin-rows" id="admin-rows"></div>
   </div>
 </div>
@@ -321,11 +325,16 @@ async function sha256(str) {
   return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
 }
 
-function getClosed() {
-  try { return JSON.parse(localStorage.getItem('bk_closed') || '{}'); } catch(e) { return {}; }
-}
-function setClosed(obj) { localStorage.setItem('bk_closed', JSON.stringify(obj)); }
+var closedCache = {}; // {[table]: {global, slots:{}, days:{}}}
 function getClosedKey() { return CFG.WEEKS[curIdx].table; }
+async function loadClosedState(tbl) {
+  var res = await supa.from('massage_settings').select('data').eq('month_table', tbl).maybeSingle();
+  closedCache[tbl] = (res.data && res.data.data) || {};
+}
+async function saveClosed(tbl, data) {
+  closedCache[tbl] = data;
+  await supa.from('massage_settings').upsert({ month_table: tbl, data: data, updated_at: new Date().toISOString() });
+}
 
 // ── Init ──────────────────────────────────────────────
 async function init() {
@@ -347,6 +356,7 @@ async function loadAllCounts() {
 
 async function load() {
   var tbl = CFG.WEEKS[curIdx].table;
+  await loadClosedState(tbl);
   var res = await supa.from(tbl).select('id,name,emp_id,slot,date_key,created_at').order('created_at');
   if (res.error) { toast('無法載入資料: ' + res.error.message); bookings = []; }
   else { bookings = res.data || []; }
@@ -368,7 +378,7 @@ function render() {
   renderStats();
   renderMyBar();
   renderClosedBanner();
-  if (isAdmin) { renderAdminRows(); renderSlotBtns(); }
+  if (isAdmin) { renderAdminRows(); renderSlotBtns(); renderDayBtns(); }
 }
 
 function renderTabs() {
@@ -402,26 +412,28 @@ function renderGrid() {
   document.getElementById('grid-title').textContent = '2026 年 ' + w.label + '　' + w.range;
   var g = document.getElementById('bgrid');
   g.innerHTML = '';
-  var closed = getClosed();
-  var ck = getClosedKey();
-  var monthClosed = closed[ck] && closed[ck].global;
+  var closed = closedCache[getClosedKey()] || {};
+  var monthClosed = closed.global;
 
   g.appendChild(mk('div','corner'));
   w.days.forEach(function(day) {
     var h = mk('div','day-h');
-    h.innerHTML = '<div class="day-n">'+day.lbl+'</div><div class="day-d">'+day.d+'</div>';
+    var dClosed = monthClosed || (closed.days && closed.days[day.k]);
+    h.innerHTML = '<div class="day-n">'+day.lbl+'</div><div class="day-d">'+day.d+'</div>' + (dClosed ? '<div style="font-size:9px;color:var(--red);margin-top:2px">&#x1F512;已關閉</div>' : '');
     g.appendChild(h);
   });
 
   CFG.SLOTS.forEach(function(slot) {
-    var slotClosed = monthClosed || (closed[ck] && closed[ck].slots && closed[ck].slots[slot]);
+    var slotClosed = monthClosed || (closed.slots && closed.slots[slot]);
     var lbl = mk('div','t-label');
     lbl.innerHTML = slot + (slotClosed ? '<span style="font-size:10px;color:var(--red);display:block;margin-top:3px">&#x1F512; 已關閉</span>' : '');
     g.appendChild(lbl);
 
     w.days.forEach(function(day) {
+      var dayClosed = monthClosed || (closed.days && closed.days[day.k]);
+      var cellClosed = slotClosed || dayClosed;
       var cell = mk('div','cell');
-      if (slotClosed) cell.classList.add('closed-bg');
+      if (cellClosed) cell.classList.add('closed-bg');
       var slotBks = bookings.filter(function(b){ return b.slot === slot && b.date_key === day.k; });
 
       slotBks.forEach(function(b) {
@@ -437,13 +449,13 @@ function renderGrid() {
         cell.appendChild(chip);
       });
 
-      if (slotClosed && !isAdmin) {
+      if (cellClosed && !isAdmin) {
         var t = mk('div','tag-closed'); t.textContent = '預約已關閉'; cell.appendChild(t);
       } else if (slotBks.length >= CFG.MAX) {
         var t2 = mk('div','tag-full'); t2.textContent = '已滿'; cell.appendChild(t2);
       } else {
         var add = mk('div','add');
-        if (slotClosed && isAdmin) {
+        if (cellClosed && isAdmin) {
           add.textContent = '🔒 已關閉'; add.classList.add('off');
         } else if (mySession && mySession.monthTable === CFG.WEEKS[curIdx].table && !isAdmin) {
           add.textContent = '已有預約'; add.classList.add('off'); add.title = '請先取消現有預約';
@@ -487,28 +499,38 @@ function renderMyBar() {
 }
 
 function renderClosedBanner() {
-  var closed = getClosed();
-  var ck = getClosedKey();
-  var isGlobalClosed = closed[ck] && closed[ck].global;
-  document.getElementById('closed-banner').style.display = isGlobalClosed ? 'flex' : 'none';
+  var closed = closedCache[getClosedKey()] || {};
+  document.getElementById('closed-banner').style.display = closed.global ? 'flex' : 'none';
 }
 
 function renderSlotBtns() {
-  var closed = getClosed();
-  var ck = getClosedKey();
+  var closed = closedCache[getClosedKey()] || {};
   var wrap = document.getElementById('slot-btns');
   wrap.innerHTML = '';
   CFG.SLOTS.forEach(function(slot) {
-    var isClosed = closed[ck] && closed[ck].slots && closed[ck].slots[slot];
+    var isClosed = closed.slots && closed.slots[slot];
     var btn = mk('button', 'slot-btn' + (isClosed ? ' closed' : ''));
     btn.textContent = (isClosed ? '🔒 ' : '🟢 ') + slot;
     btn.onclick = (function(s){ return function(){ toggleSlot(s); }; })(slot);
     wrap.appendChild(btn);
   });
   var gb = document.getElementById('btn-global');
-  var gClosed = closed[ck] && closed[ck].global;
+  var gClosed = closed.global;
   gb.textContent = gClosed ? '開放本期預約' : '關閉本期預約';
   gb.className = gClosed ? 'btn-open-all' : 'btn-close-all';
+}
+
+function renderDayBtns() {
+  var closed = closedCache[getClosedKey()] || {};
+  var wrap = document.getElementById('day-btns');
+  wrap.innerHTML = '';
+  CFG.WEEKS[curIdx].days.forEach(function(day) {
+    var isClosed = closed.days && closed.days[day.k];
+    var btn = mk('button', 'slot-btn' + (isClosed ? ' closed' : ''));
+    btn.textContent = (isClosed ? '🔒 ' : '🟢 ') + day.d + '(' + day.lbl + ')';
+    btn.onclick = (function(k){ return function(){ toggleDay(k); }; })(day.k);
+    wrap.appendChild(btn);
+  });
 }
 
 function renderAdminRows() {
@@ -677,23 +699,36 @@ function logoutAdmin() {
   render();
 }
 
-function toggleGlobal() {
-  var closed = getClosed();
+async function toggleGlobal() {
   var ck = getClosedKey();
-  if (!closed[ck]) closed[ck] = {};
-  closed[ck].global = !closed[ck].global;
-  setClosed(closed); render();
-  toast(closed[ck].global ? '&#x1F512; 已關閉本期預約入口' : '&#x2705; 已開放本期預約入口');
+  var data = Object.assign({}, closedCache[ck] || {});
+  data.global = !data.global;
+  showLoader();
+  await saveClosed(ck, data);
+  hideLoader(); render();
+  toast(data.global ? '&#x1F512; 已關閉本期預約入口' : '&#x2705; 已開放本期預約入口');
 }
 
-function toggleSlot(slot) {
-  var closed = getClosed();
+async function toggleSlot(slot) {
   var ck = getClosedKey();
-  if (!closed[ck]) closed[ck] = {};
-  if (!closed[ck].slots) closed[ck].slots = {};
-  closed[ck].slots[slot] = !closed[ck].slots[slot];
-  setClosed(closed); render();
-  toast(closed[ck].slots[slot] ? '&#x1F512; 已關閉：' + slot : '&#x2705; 已開放：' + slot);
+  var data = Object.assign({}, closedCache[ck] || {});
+  data.slots = Object.assign({}, data.slots);
+  data.slots[slot] = !data.slots[slot];
+  showLoader();
+  await saveClosed(ck, data);
+  hideLoader(); render();
+  toast(data.slots[slot] ? '&#x1F512; 已關閉：' + slot : '&#x2705; 已開放：' + slot);
+}
+
+async function toggleDay(dateKey) {
+  var ck = getClosedKey();
+  var data = Object.assign({}, closedCache[ck] || {});
+  data.days = Object.assign({}, data.days);
+  data.days[dateKey] = !data.days[dateKey];
+  showLoader();
+  await saveClosed(ck, data);
+  hideLoader(); render();
+  toast(data.days[dateKey] ? '&#x1F512; 已關閉：' + dateKey : '&#x2705; 已開放：' + dateKey);
 }
 
 async function adminDelChip(b) {
@@ -765,21 +800,21 @@ init();
 
 <!--
 =================================================================
-★ 新增 8 月資料表 — 請在 Supabase SQL Editor 執行：
+★ 新增「關閉單日／時段／整期」共用設定表 — 請在 Supabase SQL Editor 執行一次：
+（此表與月份無關，只需建立一次，所有月份共用）
 
-create table if not exists massage_aug2026 (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null,
-  emp_id     text,
-  slot       text not null,
-  date_key   text not null,
-  pw_hash    text,
-  created_at timestamptz default now()
+create table if not exists massage_settings (
+  month_table text primary key,
+  data        jsonb not null default '{}',
+  updated_at  timestamptz default now()
 );
-alter table massage_aug2026 enable row level security;
-create policy "allow all" on massage_aug2026 for all using (true) with check (true);
+alter table massage_settings enable row level security;
+create policy "allow all" on massage_settings for all using (true) with check (true);
 
-（7 月資料表 massage_jul2026 維持不動，資料完整保留）
+建立後，管理員在任何裝置關閉「整期／單一時段／單一日期」，
+所有訪客（不同電腦、手機）都會立即看到相同的關閉狀態。
+之前存在瀏覽器 localStorage 的關閉設定不會自動搬過來，
+需要管理員登入後重新按一次「關閉」設定。
 =================================================================
 -->
 </body>
