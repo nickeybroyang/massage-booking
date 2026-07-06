@@ -83,8 +83,8 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
 .msub{font-size:13px;color:var(--g600);margin-bottom:20px}
 .fg{margin-bottom:14px}
 .fg label{display:block;font-size:13px;color:var(--g600);margin-bottom:5px}
-.fg input{width:100%;border:1px solid var(--g200);border-radius:var(--r-sm);padding:9px 12px;font-size:14px;outline:none;transition:border-color .15s}
-.fg input:focus{border-color:var(--teal)}
+.fg input,.fg select{width:100%;border:1px solid var(--g200);border-radius:var(--r-sm);padding:9px 12px;font-size:14px;outline:none;transition:border-color .15s;background:#fff}
+.fg input:focus,.fg select:focus{border-color:var(--teal)}
 .ferr{font-size:12px;color:var(--red);margin-top:4px;display:none}
 .fhint{font-size:11px;color:var(--g400);margin-top:4px;line-height:1.5}
 .mactions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
@@ -246,6 +246,27 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
     <div class="mactions">
       <button class="btn-cancel" onclick="closeM('m-cancel')">返回</button>
       <button class="btn-del" onclick="doCancel()">確認取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit booking modal -->
+<div class="overlay" id="m-edit">
+  <div class="mbox">
+    <h3>修改預約時段</h3>
+    <p class="msub" id="m-edit-sub"></p>
+    <div class="fg">
+      <label>日期</label>
+      <select id="i-edit-date"></select>
+    </div>
+    <div class="fg">
+      <label>時段</label>
+      <select id="i-edit-slot"></select>
+    </div>
+    <div class="ferr" id="e-edit">該時段已滿，請選擇其他時段</div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeM('m-edit')">取消</button>
+      <button class="btn-primary" onclick="doEditBooking()">確認修改</button>
     </div>
   </div>
 </div>
@@ -545,7 +566,10 @@ function renderAdminRows() {
       + '<span style="font-size:12px">'+b.date_key+'</span>'
       + '<span style="font-size:12px">'+b.slot+'</span>'
       + '<span style="font-size:12px"><b>'+b.name+'</b>'+(b.emp_id ? ' · '+b.emp_id : '')+'</span>'
+      + '<span style="display:flex;gap:6px;justify-content:flex-end">'
+      + '<button class="del-btn" style="border-color:var(--teal);color:#0F6E56" onclick="adminEditById(\''+b.id+'\')">修改</button>'
       + '<button class="del-btn" onclick="adminDelById(\''+b.id+'\')">刪除</button>'
+      + '</span>'
       + '</div>';
   });
   el.innerHTML = html;
@@ -747,6 +771,59 @@ async function doAdminDel(id) {
   await load(); toast('已刪除');
 }
 
+var pendingEdit = null;
+
+function adminEditById(id) {
+  var b = bookings.find(function(x){ return x.id === id; });
+  if (b) openEditBooking(b);
+}
+
+function openEditBooking(b) {
+  pendingEdit = b;
+  document.getElementById('m-edit-sub').textContent = '目前：' + b.name + '　' + b.date_key + '　' + b.slot;
+  var dateSel = document.getElementById('i-edit-date');
+  dateSel.innerHTML = '';
+  CFG.WEEKS[curIdx].days.forEach(function(day) {
+    var opt = document.createElement('option');
+    opt.value = day.k; opt.textContent = day.d + '（' + day.lbl + '）';
+    if (day.k === b.date_key) opt.selected = true;
+    dateSel.appendChild(opt);
+  });
+  var slotSel = document.getElementById('i-edit-slot');
+  slotSel.innerHTML = '';
+  CFG.SLOTS.forEach(function(slot) {
+    var opt = document.createElement('option');
+    opt.value = slot; opt.textContent = slot;
+    if (slot === b.slot) opt.selected = true;
+    slotSel.appendChild(opt);
+  });
+  document.getElementById('e-edit').style.display = 'none';
+  openM('m-edit');
+}
+
+async function doEditBooking() {
+  var newDate = document.getElementById('i-edit-date').value;
+  var newSlot = document.getElementById('i-edit-slot').value;
+  if (newDate === pendingEdit.date_key && newSlot === pendingEdit.slot) { closeM('m-edit'); return; }
+  var conflict = bookings.filter(function(b){ return b.id !== pendingEdit.id && b.date_key === newDate && b.slot === newSlot; });
+  if (conflict.length >= CFG.MAX) {
+    document.getElementById('e-edit').style.display = 'block';
+    return;
+  }
+  document.getElementById('e-edit').style.display = 'none';
+  showLoader();
+  var tbl = CFG.WEEKS[curIdx].table;
+  var res = await supa.from(tbl).update({date_key: newDate, slot: newSlot}).eq('id', pendingEdit.id);
+  if (res.error) { hideLoader(); toast('&#x274C; 修改失敗：' + res.error.message); return; }
+  if (mySession && mySession.bookingId === pendingEdit.id) {
+    mySession.dateKey = newDate; mySession.slot = newSlot;
+    sessionStorage.setItem('staff', JSON.stringify(mySession));
+  }
+  await load();
+  closeM('m-edit');
+  toast('&#x2705; 已更新預約時段');
+}
+
 function exportCSV() {
   var w = CFG.WEEKS[curIdx];
   var rows = [['月份','日期','時段','員工姓名','員工編號','建立時間']];
@@ -787,11 +864,11 @@ function toast(msg) {
   var t = document.getElementById('toast'); t.innerHTML = msg; t.classList.add('show');
   clearTimeout(_tt); _tt = setTimeout(function(){ t.classList.remove('show'); }, 3000);
 }
-['m-book','m-cancel','m-admin'].forEach(function(id) {
+['m-book','m-cancel','m-admin','m-edit'].forEach(function(id) {
   document.getElementById(id).addEventListener('click', function(e){ if (e.target === this) closeM(id); });
 });
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closeM('m-book'); closeM('m-cancel'); closeM('m-admin'); }
+  if (e.key === 'Escape') { closeM('m-book'); closeM('m-cancel'); closeM('m-admin'); closeM('m-edit'); }
   if (e.key === 'Enter' && document.getElementById('m-admin').classList.contains('open')) doAdminLogin();
 });
 
